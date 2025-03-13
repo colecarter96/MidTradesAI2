@@ -2,8 +2,11 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function Hero() {
+  const { user } = useAuth();
+  
   const scrollToFeatures = () => {
     const featuresSection = document.getElementById('features');
     if (featuresSection) {
@@ -30,10 +33,10 @@ export default function Hero() {
           </div>
           <div className="flex items-center justify-center gap-4">
             <Link 
-              href="/sign-up"
+              href={user ? "/dashboard" : "/sign-up"}
               className="px-6 py-3 text-base font-medium rounded-lg text-white bg-gray-900 hover:bg-gray-800 transition-all"
             >
-              Get started
+              {user ? "View Dashboard" : "Get started"}
             </Link>
             <button 
               onClick={scrollToFeatures}
