@@ -12,6 +12,7 @@ type AuthContextType = {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: AuthError | null }>;
+  signInWithGoogle: () => Promise<{ error: AuthError | null }>;
   isEmailVerified: boolean;
 };
 
@@ -121,6 +122,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithGoogle = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            prompt: 'select_account'
+          }
+        }
+      });
+      return { error };
+    } catch (error) {
+      console.error('Error signing in with Google:', error);
+      return { error: error as AuthError };
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -129,6 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     resetPassword,
     updatePassword,
+    signInWithGoogle,
     isEmailVerified,
   };
 
