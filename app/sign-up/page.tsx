@@ -19,14 +19,18 @@ export default function SignUp() {
     setIsLoading(true);
 
     try {
-      const { error: signUpError } = await signUp(email, password);
+      const { error: signUpError, data } = await signUp(email, password);
 
       if (signUpError) {
-        if (signUpError.message.includes('User already registered')) {
-          setError('This email is already registered. Please sign in instead.');
-        } else {
-          setError(signUpError.message);
-        }
+        setError(signUpError.message);
+        setIsLoading(false);
+        return;
+      }
+
+      // If identities array is empty, it means the email is already registered
+      if (data?.user?.identities?.length === 0) {
+        setError('This email is already registered. Please sign in instead.');
+        setIsLoading(false);
         return;
       }
 
