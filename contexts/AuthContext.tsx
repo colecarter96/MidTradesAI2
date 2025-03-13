@@ -10,6 +10,8 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string) => Promise<{ error: AuthError | null; data: { user: User | null } | null }>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
+  updatePassword: (newPassword: string) => Promise<{ error: AuthError | null }>;
   isEmailVerified: boolean;
 };
 
@@ -90,12 +92,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const resetPassword = async (email: string) => {
+    try {
+      // Use development URL in development, production URL in production
+      const redirectTo = process.env.NODE_ENV === 'development' 
+        ? 'http://localhost:3000/auth/reset-password'
+        : `${window.location.origin}/auth/reset-password`;
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo
+      });
+      return { error };
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      return { error: error as AuthError };
+    }
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+      return { error };
+    } catch (error) {
+      console.error('Error updating password:', error);
+      return { error: error as AuthError };
+    }
+  };
+
   const value = {
     user,
     loading,
     signIn,
     signUp,
     signOut,
+    resetPassword,
+    updatePassword,
     isEmailVerified,
   };
 
