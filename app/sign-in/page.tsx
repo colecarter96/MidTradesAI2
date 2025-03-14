@@ -197,7 +197,16 @@ export default function SignIn() {
   return (
     <div className="min-h-screen flex flex-col">
       <main className="flex-grow flex items-center justify-center px-4 sm:px-6 lg:px-8">
-        <SignInForm />
+        <Suspense fallback={
+          <div className="max-w-sm w-full space-y-8">
+            <div className="text-center">
+              <h2 className="text-3xl font-semibold text-gray-900">Loading...</h2>
+              <p className="mt-2 text-sm text-gray-600">Please wait while we prepare the sign-in form.</p>
+            </div>
+          </div>
+        }>
+          <SignInForm />
+        </Suspense>
       </main>
     </div>
   );
