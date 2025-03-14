@@ -58,13 +58,6 @@ export default function ProfilePage() {
       try {
         console.log('Loading profile for user:', user.id);
         
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError || !session) {
-          console.error('Session error or no session:', sessionError);
-          return;
-        }
-
         const { data, error } = await supabase
           .from('profiles')
           .select('*')

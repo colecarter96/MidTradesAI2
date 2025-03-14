@@ -14,8 +14,6 @@ export default function Header() {
     try {
       console.log('🔄 Starting sign out process');
       await signOut();
-      console.log('✅ Sign out successful');
-      router.push('/');
     } catch (error) {
       console.error('❌ Error signing out:', error);
     }
@@ -47,13 +45,15 @@ export default function Header() {
     }
 
     if (!session) {
+    // console.log("THIS IS THE USER: ", user);
+    // if (!user) {
       console.log('⚠️ No active session found, redirecting to sign in');
       router.push('/sign-in');
       return;
     }
 
     // If we have a valid session and user, go to profile
-    if (user && session) {
+    if (user) {
       console.log('✅ Valid session found, navigating to profile');
       try {
         await router.push('/profile');
@@ -76,8 +76,14 @@ export default function Header() {
           </Link>
 
           <nav className="flex items-center gap-4">
-            {!loading && (user ? (
-              <>
+            {loading ? (
+              // Loading skeleton
+              <div className="flex items-center gap-4 animate-pulse">
+                <div className="w-20 h-8 bg-gray-200 rounded"></div>
+                <div className="w-20 h-8 bg-gray-200 rounded"></div>
+              </div>
+            ) : user ? (
+              <div className="flex items-center gap-4 opacity-100 transition-opacity duration-200">
                 <Link
                   href="/dashboard"
                   className="text-sm font-medium text-gray-700 hover:text-gray-900"
@@ -86,9 +92,7 @@ export default function Header() {
                 </Link>
                 <button
                   onClick={handleProfileClick}
-                  className={`text-sm font-medium text-gray-700 hover:text-gray-900 ${
-                    loading ? 'pointer-events-none opacity-50' : ''
-                  }`}
+                  className="text-sm font-medium text-gray-700 hover:text-gray-900"
                 >
                   Profile
                 </button>
@@ -103,9 +107,9 @@ export default function Header() {
                     Sign out
                   </button>
                 </div>
-              </>
+              </div>
             ) : (
-              <>
+              <div className="flex items-center gap-4 opacity-100 transition-opacity duration-200">
                 <Link
                   href="/sign-in"
                   className="text-sm font-medium text-gray-700 hover:text-gray-900"
@@ -114,12 +118,12 @@ export default function Header() {
                 </Link>
                 <Link
                   href="/sign-up"
-                  className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+                  className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
                 >
                   Sign up
                 </Link>
-              </>
-            ))}
+              </div>
+            )}
           </nav>
         </div>
       </div>

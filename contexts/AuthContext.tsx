@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../utils/supabase';
+import { useRouter } from 'next/navigation';
 
 type AuthContextType = {
   user: User | null;
@@ -21,71 +22,93 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
   const [isEmailVerified, setIsEmailVerified] = useState(false);
 
   useEffect(() => {
+    console.log('🔐 Auth Provider Initializing');
     let mounted = true;
 
-    // Check active sessions and sets the user
-    const checkSession = async () => {
+    const initializeAuth = async () => {
       try {
-        console.log('🔍 Checking session in AuthContext...');
-        
-        // Get initial session
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('❌ Error getting session:', error);
-          if (mounted) {
-            setLoading(false);
-          }
-          return;
-        }
+        // Keep loading true until we're done with all checks
+        setLoading(true);
 
-        console.log('📝 Session check result:', { 
-          hasSession: !!session, 
+        // Get initial session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        console.log('🔑 Initial Session Check:', {
+          hasSession: !!session,
+          error: sessionError?.message,
           userEmail: session?.user?.email,
-          expiresAt: session?.expires_at
+          provider: session?.user?.app_metadata?.provider,
+          expiresAt: session?.expires_at,
         });
 
+        if (sessionError) {
+          console.error('❌ Session Error:', sessionError);
+        }
+
+        // Get user details
+        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+
+        // Only update state if component is still mounted
         if (mounted) {
-          setUser(session?.user ?? null);
-          setIsEmailVerified(session?.user?.email_confirmed_at != null);
+          setUser(currentUser);
+          setIsEmailVerified(currentUser?.email_confirmed_at != null);
+          // Set loading to false only after we have all the data
+          setLoading(false);
         }
 
         // Set up auth state change listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (_event, session) => {
-            console.log('🔄 Auth state changed:', { 
-              event: _event, 
+          async (event, session) => {
+            if (!mounted) return;
+
+            console.log('🔄 Auth State Change:', {
+              event,
               hasSession: !!session,
-              userEmail: session?.user?.email
+              userEmail: session?.user?.email,
+              provider: session?.user?.app_metadata?.provider,
+              timestamp: new Date().toISOString(),
             });
-            
+
+            // Set loading true during state changes
+            setLoading(true);
+
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+              const { data: { user: updatedUser } } = await supabase.auth.getUser();
+              if (mounted) {
+                setUser(updatedUser);
+                setIsEmailVerified(updatedUser?.email_confirmed_at != null);
+              }
+            } else if (event === 'SIGNED_OUT') {
+              if (mounted) {
+                setUser(null);
+                setIsEmailVerified(false);
+              }
+            }
+
+            // Set loading false after state change is complete
             if (mounted) {
-              setUser(session?.user ?? null);
-              setIsEmailVerified(session?.user?.email_confirmed_at != null);
+              setLoading(false);
             }
           }
         );
 
-        // Only set loading to false after everything is set up
-        if (mounted) {
-          setLoading(false);
-        }
-
         return () => {
+          mounted = false;
           subscription.unsubscribe();
         };
       } catch (error) {
-        console.error('❌ Error checking session:', error);
+        console.error('❌ Auth Initialization Error:', error);
         if (mounted) {
           setLoading(false);
         }
       }
     };
 
-    checkSession();
+    initializeAuth();
 
     return () => {
       mounted = false;
@@ -153,11 +176,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     try {
       console.log('🚪 Attempting sign out...');
+      setLoading(true);
+      
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      console.log('✅ Sign out successful');
+
+      // Clear any stored auth data
+      localStorage.removeItem('googleAuthInProgress');
+      
+      // Force a session check to ensure it's cleared
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.log('✅ Sign out successful - session cleared');
+        // Always redirect to home page and force a refresh
+        window.location.href = '/';
+      } else {
+        console.warn('⚠️ Session still present after sign out');
+      }
     } catch (error) {
       console.error('❌ Error signing out:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -194,18 +233,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     try {
       console.log('🔑 Attempting Google sign in...');
-      const { error } = await supabase.auth.signInWithOAuth({
+      setLoading(true);
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams: {
-            prompt: 'select_account'
-          }
+          skipBrowserRedirect: false // This ensures Supabase handles the PKCE flow
         }
       });
-      return { error };
+
+      if (error) {
+        console.error('❌ Google sign in error:', error);
+        setLoading(false);
+        return { error };
+      }
+
+      // Store that we're in the middle of Google auth
+      localStorage.setItem('googleAuthInProgress', 'true');
+
+      console.log('✅ Google sign in initiated:', {
+        provider: 'google',
+        url: data?.url
+      });
+
+      return { error: null };
     } catch (error) {
       console.error('❌ Error signing in with Google:', error);
+      setLoading(false);
       return { error: error as AuthError };
     }
   };
