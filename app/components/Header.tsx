@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../utils/supabase';
 
 export default function Header() {
   const { user, signOut, loading } = useAuth();
@@ -11,31 +12,49 @@ export default function Header() {
 
   const handleSignOut = async () => {
     try {
+      console.log('🔄 Starting sign out process');
       await signOut();
+      console.log('✅ Sign out successful');
       router.push('/');
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('❌ Error signing out:', error);
     }
   };
 
   const handleProfileClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     
-    console.log('👤 Profile click handler:', { 
+    console.log('🔍 Profile click - Current state:', { 
       hasUser: !!user, 
-      loading, 
-      userEmail: user?.email 
+      loading,
+      userEmail: user?.email,
+      userSession: await supabase.auth.getSession()
     });
     
     // Don't do anything if still loading
     if (loading) {
-      console.log('⏳ Still loading, returning early');
+      console.log('⏳ Auth state is still loading');
       return;
     }
 
-    // If we have a user, go to profile
-    if (user) {
-      console.log('🚀 Attempting to navigate to profile');
+    // Verify session is valid before navigation
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('❌ Session error:', sessionError);
+      router.push('/sign-in');
+      return;
+    }
+
+    if (!session) {
+      console.log('⚠️ No active session found, redirecting to sign in');
+      router.push('/sign-in');
+      return;
+    }
+
+    // If we have a valid session and user, go to profile
+    if (user && session) {
+      console.log('✅ Valid session found, navigating to profile');
       try {
         await router.push('/profile');
         console.log('✅ Navigation to profile successful');
@@ -43,7 +62,8 @@ export default function Header() {
         console.error('❌ Error navigating to profile:', error);
       }
     } else {
-      console.log('⚠️ No user found when trying to navigate to profile');
+      console.log('⚠️ Missing user or session, redirecting to sign in');
+      router.push('/sign-in');
     }
   };
 
