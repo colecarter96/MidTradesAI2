@@ -4,39 +4,35 @@ import type { NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
   try {
+    console.log('🔒 Middleware executing for path:', req.nextUrl.pathname);
+    
+    // Log all cookies in the request
+    console.log('🍪 Request cookies:', req.cookies.getAll().map(cookie => ({
+      name: cookie.name,
+      value: cookie.value.substring(0, 10) + '...' // Only show first 10 chars for security
+    })));
+
     const res = NextResponse.next();
     const supabase = createMiddlewareClient({ req, res });
 
     // Refresh session if expired - required for Server Components
-    await supabase.auth.getSession();
+    const { data: { session }, error } = await supabase.auth.getSession();
+    console.log('🔑 Session check:', { 
+      hasSession: !!session, 
+      error: error?.message,
+      userEmail: session?.user?.email,
+      expiresAt: session?.expires_at
+    });
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    // Protected routes
-    const protectedRoutes = ['/dashboard', '/profile'];
-    const isProtectedRoute = protectedRoutes.some(route => req.nextUrl.pathname.startsWith(route));
-
-    // Auth routes that should redirect if user is already logged in
-    const authRoutes = ['/sign-in', '/sign-up'];
-    const isAuthRoute = authRoutes.some(route => req.nextUrl.pathname.startsWith(route));
-
-    // If accessing a protected route without being logged in
-    if (isProtectedRoute && !session) {
-      const redirectUrl = new URL('/sign-in', req.url);
-      redirectUrl.searchParams.set('redirect', req.nextUrl.pathname);
-      return NextResponse.redirect(redirectUrl);
-    }
-
-    // If accessing auth routes while logged in
-    if (isAuthRoute && session) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
+    // Log cookies in the response
+    console.log('🍪 Response cookies:', res.cookies.getAll().map(cookie => ({
+      name: cookie.name,
+      value: cookie.value.substring(0, 10) + '...' // Only show first 10 chars for security
+    })));
 
     return res;
   } catch (e) {
-    // If there's an error, allow the request to continue
+    console.error('❌ Middleware error:', e);
     return NextResponse.next();
   }
 }

@@ -18,6 +18,35 @@ export default function Header() {
     }
   };
 
+  const handleProfileClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    
+    console.log('👤 Profile click handler:', { 
+      hasUser: !!user, 
+      loading, 
+      userEmail: user?.email 
+    });
+    
+    // Don't do anything if still loading
+    if (loading) {
+      console.log('⏳ Still loading, returning early');
+      return;
+    }
+
+    // If we have a user, go to profile
+    if (user) {
+      console.log('🚀 Attempting to navigate to profile');
+      try {
+        await router.push('/profile');
+        console.log('✅ Navigation to profile successful');
+      } catch (error) {
+        console.error('❌ Error navigating to profile:', error);
+      }
+    } else {
+      console.log('⚠️ No user found when trying to navigate to profile');
+    }
+  };
+
   return (
     <header className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-sm border-b border-gray-200 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -35,12 +64,14 @@ export default function Header() {
                 >
                   Dashboard
                 </Link>
-                <Link
-                  href="/profile"
-                  className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                <button
+                  onClick={handleProfileClick}
+                  className={`text-sm font-medium text-gray-700 hover:text-gray-900 ${
+                    loading ? 'pointer-events-none opacity-50' : ''
+                  }`}
                 >
                   Profile
-                </Link>
+                </button>
                 <div className="flex items-center gap-4 pl-4 border-l border-gray-200">
                   <span className="text-sm text-gray-600">
                     {user.email}
