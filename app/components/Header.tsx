@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../utils/supabase';
 
 export default function Header() {
   const { user, signOut, loading } = useAuth();
@@ -11,10 +12,58 @@ export default function Header() {
 
   const handleSignOut = async () => {
     try {
+      console.log('🔄 Starting sign out process');
       await signOut();
-      router.push('/');
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('❌ Error signing out:', error);
+    }
+  };
+
+  const handleProfileClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    
+    console.log('🔍 Profile click - Current state:', { 
+      hasUser: !!user, 
+      loading,
+      userEmail: user?.email,
+      userSession: await supabase.auth.getSession()
+    });
+    
+    // Don't do anything if still loading
+    if (loading) {
+      console.log('⏳ Auth state is still loading');
+      return;
+    }
+
+    // Verify session is valid before navigation
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('❌ Session error:', sessionError);
+      router.push('/sign-in');
+      return;
+    }
+
+    if (!session) {
+    // console.log("THIS IS THE USER: ", user);
+    // if (!user) {
+      console.log('⚠️ No active session found, redirecting to sign in');
+      router.push('/sign-in');
+      return;
+    }
+
+    // If we have a valid session and user, go to profile
+    if (user) {
+      console.log('✅ Valid session found, navigating to profile');
+      try {
+        await router.push('/profile');
+        console.log('✅ Navigation to profile successful');
+      } catch (error) {
+        console.error('❌ Error navigating to profile:', error);
+      }
+    } else {
+      console.log('⚠️ Missing user or session, redirecting to sign in');
+      router.push('/sign-in');
     }
   };
 
@@ -27,20 +76,26 @@ export default function Header() {
           </Link>
 
           <nav className="flex items-center gap-4">
-            {!loading && (user ? (
-              <>
+            {loading ? (
+              // Loading skeleton
+              <div className="flex items-center gap-4 animate-pulse">
+                <div className="w-20 h-8 bg-gray-200 rounded"></div>
+                <div className="w-20 h-8 bg-gray-200 rounded"></div>
+              </div>
+            ) : user ? (
+              <div className="flex items-center gap-4 opacity-100 transition-opacity duration-200">
                 <Link
                   href="/dashboard"
                   className="text-sm font-medium text-gray-700 hover:text-gray-900"
                 >
                   Dashboard
                 </Link>
-                <Link
-                  href="/profile"
+                <button
+                  onClick={handleProfileClick}
                   className="text-sm font-medium text-gray-700 hover:text-gray-900"
                 >
                   Profile
-                </Link>
+                </button>
                 <div className="flex items-center gap-4 pl-4 border-l border-gray-200">
                   <span className="text-sm text-gray-600">
                     {user.email}
@@ -52,9 +107,9 @@ export default function Header() {
                     Sign out
                   </button>
                 </div>
-              </>
+              </div>
             ) : (
-              <>
+              <div className="flex items-center gap-4 opacity-100 transition-opacity duration-200">
                 <Link
                   href="/sign-in"
                   className="text-sm font-medium text-gray-700 hover:text-gray-900"
@@ -63,12 +118,12 @@ export default function Header() {
                 </Link>
                 <Link
                   href="/sign-up"
-                  className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+                  className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
                 >
                   Sign up
                 </Link>
-              </>
-            ))}
+              </div>
+            )}
           </nav>
         </div>
       </div>

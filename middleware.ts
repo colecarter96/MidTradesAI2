@@ -4,44 +4,21 @@ import type { NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
   try {
+    // Create a response to modify
     const res = NextResponse.next();
+    
+    // Create the Supabase client
     const supabase = createMiddlewareClient({ req, res });
 
-    // Refresh session if expired - required for Server Components
-    await supabase.auth.getSession();
-
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    // Protected routes
-    const protectedRoutes = ['/dashboard', '/profile'];
-    const isProtectedRoute = protectedRoutes.some(route => req.nextUrl.pathname.startsWith(route));
-
-    // Auth routes that should redirect if user is already logged in
-    const authRoutes = ['/sign-in', '/sign-up'];
-    const isAuthRoute = authRoutes.some(route => req.nextUrl.pathname.startsWith(route));
-
-    // If accessing a protected route without being logged in
-    if (isProtectedRoute && !session) {
-      const redirectUrl = new URL('/sign-in', req.url);
-      redirectUrl.searchParams.set('redirect', req.nextUrl.pathname);
-      return NextResponse.redirect(redirectUrl);
-    }
-
-    // If accessing auth routes while logged in
-    if (isAuthRoute && session) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-
+    // Just set up the Supabase context without any session checks
     return res;
-  } catch (e) {
-    // If there's an error, allow the request to continue
+  } catch (error) {
+    console.error('❌ Middleware error:', error);
     return NextResponse.next();
   }
 }
 
-// Update matcher to be more specific about which routes to handle
+// Keep the matcher for future use if needed
 export const config = {
   matcher: [
     '/dashboard/:path*',

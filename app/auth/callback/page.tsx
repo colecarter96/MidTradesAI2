@@ -1,68 +1,55 @@
 'use client';
 
-import React, { Suspense, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '../../../utils/supabase';
 
-function AuthCallbackContent() {
+export default function AuthCallbackPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        console.log('Starting auth callback handling...');
-        const params = Object.fromEntries(searchParams?.entries() || []);
-        console.log('URL Parameters:', params);
-
-        // First try to get the current session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        // Let Supabase handle the OAuth callback automatically
+        const { data: { session }, error } = await supabase.auth.getSession();
         
-        if (session) {
-          console.log('Active session found, redirecting to home...');
-          router.replace('/');
-          return;
-        }
-
-        // If no session, check for auth code
-        const code = searchParams?.get('code');
-        console.log('Auth code present:', !!code);
-        
-        if (!code) {
-          console.error('No code in URL and no active session');
-          router.push('/sign-in?error=no_code');
-          return;
-        }
-
-        // Exchange code for session
-        console.log('Exchanging code for session...');
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        console.log('🔄 Auth callback - Session check:', {
+          hasSession: !!session,
+          error: error?.message,
+          userEmail: session?.user?.email,
+          provider: session?.user?.app_metadata?.provider
+        });
 
         if (error) {
-          console.error('Error exchanging code for session:', error.message);
-          router.push('/sign-in?error=auth_error');
+          console.error('❌ Auth callback error:', error);
+          router.push(`/sign-in?error=auth_error&details=${encodeURIComponent(error.message)}`);
           return;
         }
 
-        // Get the final session
-        const { data: { session: finalSession } } = await supabase.auth.getSession();
-
-        if (!finalSession) {
-          console.error('No session after exchange');
+        if (!session) {
+          // If no session, try to parse the hash fragment
+          if (window.location.hash) {
+            console.log('📝 Found hash fragment, letting Supabase process it');
+            // The presence of a hash means Supabase is still processing the OAuth response
+            // Just wait for Supabase to handle it
+            return;
+          }
+          
+          console.error('❌ No session established');
           router.push('/sign-in?error=no_session');
           return;
         }
 
-        console.log('Authentication successful, redirecting to home...');
-        router.replace('/');
-      } catch (err) {
-        console.error('Error in auth callback:', err);
+        console.log('✅ Authentication successful');
+        router.push('/');
+      } catch (error) {
+        console.error('❌ Callback error:', error);
         router.push('/sign-in?error=unknown');
       }
     };
 
     handleCallback();
-  }, [router, searchParams]);
+  }, [router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">
@@ -71,20 +58,5 @@ function AuthCallbackContent() {
         <p className="mt-2 text-sm text-gray-600">Please wait while we verify your credentials.</p>
       </div>
     </div>
-  );
-}
-
-export default function AuthCallbackPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900">Loading...</h2>
-          <p className="mt-2 text-sm text-gray-600">Please wait while we process your request.</p>
-        </div>
-      </div>
-    }>
-      <AuthCallbackContent />
-    </Suspense>
   );
 } 
