@@ -25,6 +25,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [isEmailVerified, setIsEmailVerified] = useState(false);
 
+  // Function to refresh session state
+  const refreshSessionState = async () => {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('❌ Session refresh error:', sessionError);
+        return;
+      }
+
+      if (session) {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        // Only update if the user state has actually changed
+        if (currentUser?.id !== user?.id) {
+          setUser(currentUser);
+          setIsEmailVerified(currentUser?.email_confirmed_at != null);
+        }
+      } else if (user) {
+        // Only update if we have a user that needs to be cleared
+        setUser(null);
+        setIsEmailVerified(false);
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing session:', error);
+    }
+  };
+
   useEffect(() => {
     console.log('🔐 Auth Provider Initializing');
     let mounted = true;
@@ -73,8 +100,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               timestamp: new Date().toISOString(),
             });
 
-            // Set loading true during state changes
-            setLoading(true);
+            // Only set loading true for actual auth state changes
+            if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+              setLoading(true);
+            }
 
             if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
               const { data: { user: updatedUser } } = await supabase.auth.getUser();
@@ -90,15 +119,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Set loading false after state change is complete
-            if (mounted) {
+            if (mounted && (event === 'SIGNED_IN' || event === 'SIGNED_OUT')) {
               setLoading(false);
             }
           }
         );
 
+        // Set up a periodic session check
+        const sessionCheckInterval = setInterval(async () => {
+          if (!mounted) return;
+          
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          
+          if (!currentSession && user) {
+            console.log('⚠️ Session expired, signing out');
+            await supabase.auth.signOut();
+          }
+        }, 60000); // Check every minute
+
+        // Handle visibility change
+        const handleVisibilityChange = () => {
+          if (document.visibilityState === 'visible' && mounted) {
+            console.log('🔄 Tab became visible, refreshing session state');
+            refreshSessionState();
+          }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
         return () => {
           mounted = false;
           subscription.unsubscribe();
+          clearInterval(sessionCheckInterval);
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
       } catch (error) {
         console.error('❌ Auth Initialization Error:', error);

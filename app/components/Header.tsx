@@ -10,6 +10,7 @@ export default function Header() {
   const { user, signOut, loading } = useAuth();
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -25,48 +26,51 @@ export default function Header() {
     e.preventDefault();
     setIsMenuOpen(false); // Close menu when navigating
     
-    console.log('🔍 Profile click - Current state:', { 
-      hasUser: !!user, 
-      loading,
-      userEmail: user?.email,
-      userSession: await supabase.auth.getSession()
-    });
+    if (isCheckingSession) return;
+    setIsCheckingSession(true);
     
-    // Don't do anything if still loading
-    if (loading) {
-      console.log('⏳ Auth state is still loading');
-      return;
-    }
+    try {
+      console.log('🔍 Profile click - Current state:', { 
+        hasUser: !!user, 
+        loading,
+        userEmail: user?.email
+      });
+      
+      // Don't do anything if still loading
+      if (loading) {
+        console.log('⏳ Auth state is still loading');
+        return;
+      }
 
-    // Verify session is valid before navigation
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError) {
-      console.error('❌ Session error:', sessionError);
-      router.push('/sign-in');
-      return;
-    }
+      // Verify session is valid before navigation
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('❌ Session error:', sessionError);
+        router.push('/sign-in');
+        return;
+      }
 
-    if (!session) {
-    // console.log("THIS IS THE USER: ", user);
-    // if (!user) {
-      console.log('⚠️ No active session found, redirecting to sign in');
-      router.push('/sign-in');
-      return;
-    }
+      if (!session) {
+        console.log('⚠️ No active session found, redirecting to sign in');
+        router.push('/sign-in');
+        return;
+      }
 
-    // If we have a valid session and user, go to profile
-    if (user) {
-      console.log('✅ Valid session found, navigating to profile');
-      try {
+      // If we have a valid session and user, go to profile
+      if (user) {
+        console.log('✅ Valid session found, navigating to profile');
         await router.push('/profile');
         console.log('✅ Navigation to profile successful');
-      } catch (error) {
-        console.error('❌ Error navigating to profile:', error);
+      } else {
+        console.log('⚠️ Missing user or session, redirecting to sign in');
+        router.push('/sign-in');
       }
-    } else {
-      console.log('⚠️ Missing user or session, redirecting to sign in');
+    } catch (error) {
+      console.error('❌ Error navigating to profile:', error);
       router.push('/sign-in');
+    } finally {
+      setIsCheckingSession(false);
     }
   };
 
@@ -92,7 +96,10 @@ export default function Header() {
           </Link>
           <button
             onClick={handleProfileClick}
-            className="text-sm font-medium text-gray-700 hover:text-gray-900 text-left py-2 md:py-0"
+            disabled={isCheckingSession}
+            className={`text-sm font-medium text-gray-700 hover:text-gray-900 text-left py-2 md:py-0 ${
+              isCheckingSession ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             Profile
           </button>
